@@ -5,7 +5,7 @@ import pygame as pg
 # BLUE = (70, 130, 180)
 WHITE = (224, 255, 255)
 WIDTH, HEIGHT = 930, 630
-CELL_SIZE = 10
+CELL_SIZE = 30
 DEPTH = 2
 COLOR = (70, 130, 180)
 
@@ -23,13 +23,13 @@ class Cell:
             CELL_SIZE
         )
 
-        # self.cord_txt = pg.font.Font(None, 13) \
-        #     .render(f'({self.x}, {self.y})', True, (180, 0, 0))
+        self.cord_txt = pg.font.Font(None, 13) \
+            .render(f'({self.x}, {self.y})', True, (180, 0, 0))
 
     def render(self):
         col = COLOR if self.c_type == "wall" else WHITE
         pg.draw.rect(self.surf, col, self.rect)
-        # self.surf.blit(self.cord_txt, (self.rect.x + 2, self.rect.centery - 2))
+        self.surf.blit(self.cord_txt, (self.rect.x + 2, self.rect.centery - 2))
 
     def __repr__(self):
         wall_type = "maze_wall" if self.x == WIDTH or \
@@ -98,7 +98,8 @@ class Map:
 
     def dividing(self):
 
-        def divide_cur(m_rect, depth=1):
+        def divide_cur(m_rect, holes=None, depth=1):
+            cur_holes = []
 
             if m_rect.w <= 2 or m_rect.h <= 2 or depth == DEPTH:
                 return
@@ -137,12 +138,39 @@ class Map:
                             top.append(self.cells[y][x])
                         elif y > wall_y:
                             bot.append(self.cells[y][x])
+
+            if holes is not None:
+                for cell in holes:
+                    if cell.x == wall_x or cell.y == wall_y:
+                        list_of_statements = [
+                            self.cells[cell.y + 1][
+                                cell.x].c_type == 'wall',
+                            self.cells[cell.y - 1][
+                                cell.x].c_type == 'wall',
+                            self.cells[cell.y][
+                                cell.x + 1].c_type == 'wall',
+                            self.cells[cell.y][
+                                cell.x - 1].c_type == 'wall']
+                        mirror = [self.cells[cell.y - 1][cell.x],
+                                  self.cells[cell.y + 1][cell.x],
+                                  self.cells[cell.y][cell.x - 1],
+                                  self.cells[cell.y][cell.x + 1]]
+                        if sum(list_of_statements) == 3:
+                            for i, state in enumerate(list_of_statements):
+                                if not state:
+                                    mirror[i].c_type = 'way'
+                                    print(f'done: {mirror[i]}')
+                                    break
+                        if sum(list_of_statements) == 4:
+                            print(f'Чета тут херня какая то: {cell}')
+                        print(holes)
+
             # print("\t" * depth, top, bot, left, right, sep="\n")
             to_hole = sample([top, bot, left, right], k=3)
             for wall in to_hole:
                 hole = choice(wall)
                 hole.c_type = "way"
-                holes.append(hole)
+                cur_holes.append(hole)
 
             top_left = pg.Rect(
                 m_rect.x,
@@ -169,37 +197,12 @@ class Map:
                 bot_left.h
             )
             # print([top_left, top_right, bot_left, bot_right])
-            # num = 1
-            # global COLOR
+
             for cur_rect in [top_left, top_right, bot_left, bot_right]:
-                # num += 1
-                # COLOR = (num * 10, 130, 180)
-                divide_cur(cur_rect, depth=depth + 1)
+                divide_cur(cur_rect, cur_holes, depth=depth + 1)
 
-        holes = []
+        # holes = []
         divide_cur(pg.Rect(0, 0, self.width - 1, self.height - 1))
-
-        for cell in holes:
-            list_of_statements = [
-                self.cells[cell.y + 1][cell.x].c_type == 'wall',
-                self.cells[cell.y - 1][cell.x].c_type == 'wall',
-                self.cells[cell.y][cell.x + 1].c_type == 'wall',
-                self.cells[cell.y][cell.x - 1].c_type == 'wall']
-            mirror = [self.cells[cell.y - 1][cell.x],
-                      self.cells[cell.y + 1][cell.x],
-                      self.cells[cell.y][cell.x - 1],
-                      self.cells[cell.y][cell.x + 1]]
-            if sum(list_of_statements) == 3:
-                for i, state in enumerate(list_of_statements):
-                    if not state:
-                        mirror[i].c_type = 'way'
-                        print(f'done: {mirror[i]}')
-                        break
-            if sum(list_of_statements) == 4:
-                for c in sample(mirror, 1):
-                    c.c_type = 'way'
-                    print(f'changed: {c}')
-        print(holes)
 
     def render(self):
         for line in self.cells:
