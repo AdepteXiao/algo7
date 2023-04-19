@@ -1,5 +1,6 @@
 import argparse
 import os
+import imageio
 import sys
 from math import ceil
 from random import randrange, choice, sample
@@ -44,8 +45,6 @@ class Cell:
         Метод отрисовки клетки лабиринта
         """
         pg.draw.rect(self.surf, Cell.tile_stat_col[self.c_type], self.rect)
-        # self.surf.blit(self.cord_txt,
-        # (self.rect.x + 2, self.rect.centery - 2))
 
     def __repr__(self):
         wall_type = "maze_wall" if self.x == c.WIDTH or \
@@ -81,7 +80,7 @@ class Map:
         for y in range(0, self.height):
             line = []
             for x in range(0, self.width):
-                if x == 0 or y == 0 or x == self.width - 1 or\
+                if x == 0 or y == 0 or x == self.width - 1 or \
                         y == self.height - 1:
                     line.append(Cell(self.surface, x, y, "wall"))
                 else:
@@ -112,6 +111,9 @@ class Map:
                         self.cells[y][x].c_type = "wall"
                         if c.IS_REALTIME:
                             self.render()
+                            if c.IS_GIF is True:
+                                self.save_for_gif()
+                                print('сохранение')
                         if x < wall_x:
                             left.append(self.cells[y][x])
                         elif x > wall_x:
@@ -153,6 +155,8 @@ class Map:
                 hole.c_type = "unchecked"
                 if c.IS_REALTIME:
                     self.render()
+                    if c.IS_GIF is True:
+                        self.save_for_gif()
 
             top_left = pg.Rect(
                 m_rect.x,
@@ -205,7 +209,7 @@ class Map:
             ]
             return [tile for tile in neighbours if tile.c_type != "wall"]
 
-        print(f"Ищем путь из {start_cell} в {end_cell}")
+        # print(f"Ищем путь из {start_cell} в {end_cell}")
         depth = 1
         marked = {depth: [start_cell]}
         while end_cell.parent is None:
@@ -221,12 +225,16 @@ class Map:
                         marked[depth + 1].append(ne)
             depth += 1
             self.render()
+            if c.IS_GIF is True:
+                self.save_for_gif()
 
         cur_cell = end_cell
         while cur_cell != start_cell:
             cur_cell.parent.c_type = "way"
             cur_cell = cur_cell.parent
             self.render()
+            if c.IS_GIF is True:
+                self.save_for_gif()
 
     def render(self):
         """
@@ -240,7 +248,7 @@ class Map:
 
     def reset(self):
         """
-        Отчистка лабиринта
+        Пересоздание лабиринта
         """
         self.cells.clear()
         self.gen_space()
@@ -265,7 +273,7 @@ class Map:
         if filepath is None:
             i = 1
             while True:
-                new_filepath = f"./results/text_maze_{i}.txt"
+                new_filepath = f"./results/image{i}.png"
                 if not os.path.exists(new_filepath):
                     filepath = new_filepath
                     break
@@ -322,46 +330,81 @@ class Map:
                 else:
                     self.cells[y][x].c_type = "wall"
 
+    def save_for_gif(self):
+        filepath = f'./gif_images/image{c.IMAGES_COUNT}.png'
+        # img_pil = Image.fromarray(pg.surfarray.array2d(
+        #     self.surface))
+        # print('saving')
+        # img_pil.save(filepath)
+        pg.image.save(self.surface, filepath)
+        c.IMAGES_FOR_GIF.append(filepath)
+        c.IMAGES_COUNT += 1
+
 
 def main():
     """
     Точка входа
     """
     parser = argparse.ArgumentParser(description='Построение лабиринта')
-    parser.add_argument('-w', '--width', type=int,
+    parser.add_argument('-W', '--width', type=int,
+                        default=None,
                         help='Ширина изображения')
-    parser.add_argument('-h', '--height', type=int,
+    parser.add_argument('-H', '--height', type=int,
+                        default=None,
                         help='Высота изображения')
     parser.add_argument('-cs', '--cell_size', type=int,
+                        default=None,
                         help='Размер клетки лабиринта')
-    parser.add_argument('-g', '--generate_from', type=str,
-                        choices=['none', 'txt', 'png'],
-                        help='Откуда генерировать лабиринт')
-    parser.add_argument('-s', '--save_to', type=str,
-                        help='В каком формате сохранять')
     parser.add_argument('-i', '--input_path', type=str,
                         help='Путь для загрузки лабиринта')
     parser.add_argument('-o', '--output_path', type=str,
                         help='Путь для сохранения лабиринта')
+    parser.add_argument('-gf', '--make_gif', type=bool,
+                        default=False,
+                        help='Путь для сохранения лабиринта')
+
     args = parser.parse_args()
-    if not os.path.isfile(args.input_path):
+    if args.input_path is not None and not os.path.isfile(args.input_path):
         print(f"Файл не найден: {args.input_path}")
         sys.exit()
 
-    c.WIDTH, c.HEIGHT = (args.width, args.height) if args.width is not None and args.height is not None else (c.WIDTH, c.HEIGHT)
+    in_file_type = ''
+    out_file_type = ''
+
+    if args.input_path:
+        if args.input_path.endswith(".txt"):
+            in_file_type = "txt"
+        elif args.input_path.endswith(".png"):
+            in_file_type = "png"
+        else:
+            print(f"Невозможно прочитать из файла {args.input_path}")
+            sys.exit()
+
+    if args.output_path:
+        if args.output_path.endswith(".txt"):
+            out_file_type = "txt"
+        elif args.output_path.endswith(".png"):
+            out_file_type = "png"
+        else:
+            print(f'Невозможно сохранить в файл {args.output_path}')
+            sys.exit()
+
+    c.WIDTH, c.HEIGHT = (args.width, args.height) \
+        if args.width is not None and args.height is not None \
+        else (c.WIDTH, c.HEIGHT)
     c.CELL_SIZE = args.cell_size if args.cell_size is not None else c.CELL_SIZE
 
     pg.init()
     to_way = []
     clock = pg.time.Clock()
 
-    if args.generate_from == 'txt':
+    if in_file_type == 'txt':
         screen = pg.display.set_mode((c.WIDTH, c.HEIGHT))
         m_w, m_h = ceil(c.WIDTH / c.CELL_SIZE), ceil(c.HEIGHT / c.CELL_SIZE)
         tile_map = Map(screen, clock, m_w, m_h)
         tile_map.generate_from_txt(args.input_path)
 
-    elif args.generate_from == 'png':
+    elif in_file_type == 'png':
         image = Image.open(args.input_path)
         c.CELL_SIZE = 1
         c.WIDTH, c.HEIGHT = image.size
@@ -379,9 +422,9 @@ def main():
     tile_map.render()
     pg.display.flip()
 
-    if args.save_to == 'txt':
+    if out_file_type == 'txt':
         tile_map.save_to_txt(args.output_path)
-    elif args.save_to == 'png':
+    elif out_file_type == 'png':
         tile_map.save_to_img(args.output_path)
 
     way_found = False
@@ -389,6 +432,13 @@ def main():
         for event in pg.event.get():
             if event.type == pg.QUIT:
                 pg.quit()
+                if c.IS_GIF is True:
+                    images = [Image.open(file) for file in c.IMAGES_FOR_GIF]
+                    images[0].save('animated.gif',
+                                   save_all=True,
+                                   append_images=images[1:],
+                                   duration=50,
+                                   loop=0)
                 exit()
 
             if event.type == pg.MOUSEBUTTONDOWN:
